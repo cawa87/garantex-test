@@ -11,18 +11,21 @@ import (
 	"github.com/cawa87/garantex-test/internal/lib/logger/sl"
 )
 
+// Rate represents a currency exchange rate with ask/bid prices and timestamp
 type Rate struct {
 	Ask       float64   `json:"ask"`
 	Bid       float64   `json:"bid"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
+// DepthResponse represents the response from Garantex depth API
 type DepthResponse struct {
 	Timestamp int64       `json:"timestamp"`
 	Asks      []OrderBook `json:"asks"`
 	Bids      []OrderBook `json:"bids"`
 }
 
+// OrderBook represents an order book entry with price and volume information
 type OrderBook struct {
 	Price  string `json:"price"`
 	Volume string `json:"volume"`
@@ -31,12 +34,14 @@ type OrderBook struct {
 	Type   string `json:"type"`
 }
 
+// Client represents the exchange API client for fetching rates
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
 	logger     *sl.Logger
 }
 
+// NewClient creates a new exchange client with the specified base URL and timeout
 func NewClient(baseURL string, timeout time.Duration, logger *sl.Logger) *Client {
 	return &Client{
 		baseURL: baseURL,
@@ -47,6 +52,7 @@ func NewClient(baseURL string, timeout time.Duration, logger *sl.Logger) *Client
 	}
 }
 
+// GetRates fetches current USDT rates from Garantex exchange
 func (c *Client) GetRates(ctx context.Context) (*Rate, error) {
 	url := fmt.Sprintf("%s/api/v2/depth?market=btcusdt", c.baseURL)
 
@@ -103,6 +109,7 @@ func (c *Client) GetRates(ctx context.Context) (*Rate, error) {
 	return rate, nil
 }
 
+// parsePrice converts string price to float64
 func parsePrice(priceStr string) (float64, error) {
 	var price float64
 	_, err := fmt.Sscanf(priceStr, "%f", &price)

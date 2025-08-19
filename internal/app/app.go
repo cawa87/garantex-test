@@ -15,8 +15,12 @@ import (
 	"github.com/cawa87/garantex-test/internal/service/exchange"
 	"github.com/cawa87/garantex-test/internal/transport/grpc"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/prometheus"
+	"go.opentelemetry.io/otel/sdk/metric"
 )
 
+// App represents the main application with all components
 type App struct {
 	config  *config.Config
 	logger  *sl.Logger
@@ -25,6 +29,7 @@ type App struct {
 	metrics *http.Server
 }
 
+// New creates a new application instance with all dependencies
 func New(cfg *config.Config) (*App, error) {
 	logger, err := sl.New(cfg.Log.Level)
 	if err != nil {
@@ -38,6 +43,14 @@ func New(cfg *config.Config) (*App, error) {
 
 	exchangeClient := exchange.NewClient(cfg.Exchange.BaseURL, cfg.Exchange.Timeout, logger)
 	server := grpc.NewServer(repo, exchangeClient, logger)
+
+	exporter, err := prometheus.New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create prometheus exporter: %w", err)
+	}
+
+	provider := metric.NewMeterProvider(metric.WithReader(exporter))
+	otel.SetMeterProvider(provider)
 
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("/metrics", promhttp.Handler())
@@ -55,6 +68,7 @@ func New(cfg *config.Config) (*App, error) {
 	}, nil
 }
 
+// Run starts the application and waits for shutdown signal
 func (a *App) Run() error {
 	go func() {
 		a.logger.Info("Starting metrics server", "port", a.config.Server.MetricsPort)
@@ -78,6 +92,7 @@ func (a *App) Run() error {
 	return a.Shutdown()
 }
 
+// Shutdown gracefully shuts down the application
 func (a *App) Shutdown() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

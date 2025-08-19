@@ -12,11 +12,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Repository represents the PostgreSQL repository for rate data operations
 type Repository struct {
 	pool   *pgxpool.Pool
 	logger *sl.Logger
 }
 
+// Rate represents a rate record in the database
 type Rate struct {
 	ID        int64     `db:"id"`
 	Ask       float64   `db:"ask"`
@@ -25,6 +27,7 @@ type Rate struct {
 	CreatedAt time.Time `db:"created_at"`
 }
 
+// NewRepository creates a new PostgreSQL repository with connection pool
 func NewRepository(dsn string, logger *sl.Logger) (*Repository, error) {
 	config, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
@@ -47,12 +50,14 @@ func NewRepository(dsn string, logger *sl.Logger) (*Repository, error) {
 	}, nil
 }
 
+// Close closes the database connection pool
 func (r *Repository) Close() {
 	if r.pool != nil {
 		r.pool.Close()
 	}
 }
 
+// SaveRate saves a rate to the database
 func (r *Repository) SaveRate(ctx context.Context, rate *exchange.Rate) error {
 	query := `
 		INSERT INTO rates (ask, bid, timestamp, created_at)
@@ -72,6 +77,7 @@ func (r *Repository) SaveRate(ctx context.Context, rate *exchange.Rate) error {
 	return nil
 }
 
+// GetLatestRate retrieves the most recent rate from the database
 func (r *Repository) GetLatestRate(ctx context.Context) (*Rate, error) {
 	query := `
 		SELECT id, ask, bid, timestamp, created_at
@@ -99,6 +105,7 @@ func (r *Repository) GetLatestRate(ctx context.Context) (*Rate, error) {
 	return &rate, nil
 }
 
+// GetRatesByTimeRange retrieves rates within a time range
 func (r *Repository) GetRatesByTimeRange(ctx context.Context, from, to time.Time) ([]*Rate, error) {
 	query := `
 		SELECT id, ask, bid, timestamp, created_at
@@ -136,6 +143,7 @@ func (r *Repository) GetRatesByTimeRange(ctx context.Context, from, to time.Time
 	return rates, nil
 }
 
+// GetRatesCount returns the total number of rates in the database
 func (r *Repository) GetRatesCount(ctx context.Context) (int64, error) {
 	query := `SELECT COUNT(*) FROM rates`
 

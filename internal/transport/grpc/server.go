@@ -9,6 +9,8 @@ import (
 	"github.com/cawa87/garantex-test/internal/lib/logger/sl"
 	"github.com/cawa87/garantex-test/internal/repository/postgres"
 	"github.com/cawa87/garantex-test/internal/service/exchange"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -17,6 +19,7 @@ import (
 	pb "github.com/cawa87/garantex-test/gen/go/rate_service.v1"
 )
 
+// Server represents the gRPC server for rate service
 type Server struct {
 	pb.UnimplementedRateServiceServer
 	repo     *postgres.Repository
@@ -24,6 +27,7 @@ type Server struct {
 	logger   *sl.Logger
 }
 
+// NewServer creates a new gRPC server with repository and exchange client
 func NewServer(repo *postgres.Repository, exchange *exchange.Client, logger *sl.Logger) *Server {
 	return &Server{
 		repo:     repo,
@@ -33,15 +37,20 @@ func NewServer(repo *postgres.Repository, exchange *exchange.Client, logger *sl.
 }
 
 func (s *Server) GetRates(ctx context.Context, req *pb.GetRatesRequest) (*pb.GetRatesResponse, error) {
+	ctx, span := otel.Tracer("rate-service").Start(ctx, "GetRates")
+	defer span.End()
+
 	s.logger.Info("GetRates called")
 
 	rate, err := s.exchange.GetRates(ctx)
 	if err != nil {
+		span.RecordError(err)
 		s.logger.Error("Failed to get rates from exchange", "error", err)
 		return nil, status.Errorf(codes.Internal, "failed to get rates from exchange: %v", err)
 	}
 
 	if err := s.repo.SaveRate(ctx, rate); err != nil {
+		span.RecordError(err)
 		s.logger.Error("Failed to save rate to database", "error", err)
 	}
 
@@ -51,6 +60,11 @@ func (s *Server) GetRates(ctx context.Context, req *pb.GetRatesRequest) (*pb.Get
 		Timestamp: timestamppb.New(rate.Timestamp),
 	}
 
+	span.SetAttributes(
+		attribute.Float64("ask", rate.Ask),
+		attribute.Float64("bid", rate.Bid),
+	)
+
 	s.logger.Info("GetRates completed successfully",
 		"ask", response.Ask,
 		"bid", response.Bid)
@@ -59,10 +73,14 @@ func (s *Server) GetRates(ctx context.Context, req *pb.GetRatesRequest) (*pb.Get
 }
 
 func (s *Server) HealthCheck(ctx context.Context, req *pb.HealthCheckRequest) (*pb.HealthCheckResponse, error) {
+	ctx, span := otel.Tracer("rate-service").Start(ctx, "HealthCheck")
+	defer span.End()
+
 	s.logger.Debug("HealthCheck called")
 
 	dbCount, err := s.repo.GetRatesCount(ctx)
 	if err != nil {
+		span.RecordError(err)
 		s.logger.Error("Database health check failed", "error", err)
 		return &pb.HealthCheckResponse{
 			Status: "unhealthy",
@@ -79,6 +97,7 @@ func (s *Server) HealthCheck(ctx context.Context, req *pb.HealthCheckRequest) (*
 	_, err = s.exchange.GetRates(exchangeCtx)
 	exchangeStatus := "healthy"
 	if err != nil {
+		span.RecordError(err)
 		s.logger.Warn("Exchange health check failed", "error", err)
 		exchangeStatus = "unhealthy"
 	}
@@ -98,10 +117,17 @@ func (s *Server) HealthCheck(ctx context.Context, req *pb.HealthCheckRequest) (*
 		},
 	}
 
+	span.SetAttributes(
+		attribute.String("status", overallStatus),
+		attribute.Int64("database_records", dbCount),
+		attribute.String("exchange_status", exchangeStatus),
+	)
+
 	s.logger.Debug("HealthCheck completed", "status", overallStatus)
 	return response, nil
 }
 
+// Run starts the gRPC server on the specified port
 func (s *Server) Run(port int) error {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
@@ -122,6 +148,7 @@ func (s *Server) Run(port int) error {
 	return nil
 }
 
+// loggingInterceptor provides request logging for gRPC calls
 func (s *Server) loggingInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		start := time.Now()

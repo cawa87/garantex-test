@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package rate_service.v1;
+
+option go_package = "github.com/cawa87/garantex-test/gen/go/rate_service.v1;rate_service";
+
+import "google/protobuf/timestamp.proto";
+
+// RateService provides methods for getting USDT rates from Garantex exchange
+service RateService {
+  // GetRates retrieves current USDT rates (ask and bid prices) from Garantex exchange
+  rpc GetRates(GetRatesRequest) returns (GetRatesResponse);
+  
+  // HealthCheck checks the service health status
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// GetRatesRequest is the request message for GetRates method
+message GetRatesRequest {
+  // Empty request - no parameters needed
+}
+
+// GetRatesResponse is the response message for GetRates method
+message GetRatesResponse {
+  // Ask price (selling price)
+  double ask = 1;
+  
+  // Bid price (buying price)
+  double bid = 2;
+  
+  // Timestamp when the rate was retrieved
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+// HealthCheckRequest is the request message for HealthCheck method
+message HealthCheckRequest {
+  // Empty request - no parameters needed
+}
+
+// HealthCheckResponse is the response message for HealthCheck method
+message HealthCheckResponse {
+  // Service status
+  string status = 1;
+  
+  // Additional health information
+  map<string, string> details = 2;
+}

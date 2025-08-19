@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: garantex-postgres
+    environment:
+      POSTGRES_DB: garantex_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: garantex-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: password
+      DATABASE_DBNAME: garantex_test
+      DATABASE_SSLMODE: disable
+      SERVER_GRPC_PORT: 50051
+      SERVER_HTTP_PORT: 8080
+      SERVER_METRICS_PORT: 9090
+      EXCHANGE_BASE_URL: https://grinex.io
+      EXCHANGE_TIMEOUT: 10s
+      LOG_LEVEL: info
+    ports:
+      - "50051:50051"  # gRPC
+      - "8080:8080"    # HTTP
+      - "9090:9090"    # Metrics
+    volumes:
+      - ./migrations:/app/migrations
+    command: ["./app"]
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

@@ -9,6 +9,9 @@ gRPC service for retrieving USDT exchange rates from Garantex exchange.
 - Real-time rates from Garantex (BTC/USDT market)
 - Prometheus metrics and structured logging
 - Docker support with graceful shutdown
+- OpenTelemetry tracing for request observability
+- Database migrations with schema versioning
+- Comprehensive code quality with golangci-lint
 
 ## Project Structure
 
